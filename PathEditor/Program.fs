@@ -49,7 +49,11 @@ module PathEditor =
 
     let save (pathsarg: Path[]) = 
         Console.Clear()
-        let pathstr = (String.Join ";", (pathsarg |> Array.map (fun (p: Path) -> p.Path)))
+        let pathstr = 
+            (";", pathsarg
+            |> Array.map<Path, String> (fun (p: Path) -> p.Path))
+            |> String.Join
+
         printfn "%s" pathstr
         Console.ReadKey() |> ignore
 
