@@ -3,73 +3,112 @@
 
 // Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\",  "Path", null)
 
-open System;
+open System
+open Microsoft.Win32
 
 module PathEditor =
     type Path =
         { Id: int
-          Path: string }
+          Path: string
+          Removed: Boolean }
+
+    let dir_removed d = 
+        System.IO.Directory.Exists(d) |> not
 
     let getpaths = 
-        Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\",  "Path", "").ToString().Split(';')
-            |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x})
+        Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\",  "Path", "").ToString().Split(';')
+            |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x })
 
     let recount paths =
         paths
-           |> Array.mapi<Path, Path> (fun i p -> {Id = i; Path = p.Path})
+           |> Array.mapi<Path, Path> (fun i p -> {Id = i; Path = p.Path; Removed = dir_removed p.Path})
 
-    let add (pathsarg : Path[]) =
+    let add (paths_arg : Path[]) =
         printf "Enter new path: "
         let newpath = Console.ReadLine()
 
         let paths: Path[] =
-            if Array.exists (fun (p : Path) -> p.Path = newpath) pathsarg = false then
-                Array.append pathsarg [|{ Id = pathsarg.Length; Path = newpath }|]
+            if Array.exists (fun (p : Path) -> p.Path = newpath) paths_arg = false then
+                Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath }|]
             else
-                pathsarg
+                paths_arg
 
         paths
 
-    let edit paths =
+    let edit paths_arg =
+        printf "What number to edit: "
+        let mutable toEdit = -1
+        let success = Int32.TryParse(Console.ReadLine(), &toEdit)
+        
+        printf "Edit path: "
+        let newpath = Console.ReadLine()
+        
+
+        let paths: Path[] =
+            if Array.exists (fun (p : Path) -> p.Path = newpath) paths_arg = false then
+                Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath }|]
+            else
+                paths_arg
+
         paths
 
-    let remove (pathsarg: Path[]) =
+    let remove (paths_arg: Path[]) =
         printf "What number to remove: "
         let mutable toRem = -1
         let success = Int32.TryParse(Console.ReadLine(), &toRem)
 
         let paths = 
-            if toRem < pathsarg.Length && toRem > -1 && success then
-                Array.append pathsarg.[0 .. toRem - 1] pathsarg.[toRem + 1.. ]
+            if toRem < paths_arg.Length && toRem > -1 && success then
+                Array.append paths_arg.[0 .. toRem - 1] paths_arg.[toRem + 1.. ]
             else
-                pathsarg
+                paths_arg
             |> recount
 
         paths
 
-    let save (pathsarg: Path[]) = 
+    let save (paths_arg: Path[]) = 
         Console.Clear()
         let pathstr = 
-            (";", pathsarg
+            (";", paths_arg
             |> Array.map<Path, String> (fun (p: Path) -> p.Path))
             |> String.Join
 
         printfn "%s" pathstr
+        printf "The string above will be written to your %%PATH%%. Continue? (y/N): "
+        let choice = Console.ReadLine()
+
+
+        if choice = "y" || choice = "Y" then
+            Registry.SetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\", "Path", pathstr, RegistryValueKind.ExpandString)
+            printfn "Changes written!"
+        else
+            printfn "No changes made."
+        
+        
+        
         Console.ReadKey() |> ignore
 
-        pathsarg
+        getpaths
 
-    let rec loop pathsArg = 
+    let print_help =
+        printfn ""
+
+    let rec loop paths_arg = 
 
         Console.Clear();
-        for path in pathsArg do
-            printfn "%d: %s" path.Id path.Path
+        for path in paths_arg do
+            if path.Removed then
+                printfn "%d * : %s" path.Id path.Path
+            else
+                printfn "%d: %s" path.Id path.Path
+
 
         printfn ""
         printfn "a) Add"
         printfn "r) Remove"
-        printfn "e) Edit"
+        //printfn "e) Edit"
         printfn "s) Save"
+        printfn "h) Help"
         printfn "x) Exit (discard non-saved changes)"
         printf " > "
         
@@ -77,15 +116,16 @@ module PathEditor =
 
         let paths =
             match choice with
-                | "a" -> add pathsArg
-                | "e" -> edit pathsArg
-                | "r" -> remove pathsArg
-                | "s" -> save pathsArg
-                | _ -> pathsArg
+                | "a" -> add paths_arg
+                //| "e" -> edit paths_arg
+                | "r" -> remove paths_arg
+                | "s" -> save paths_arg
+                | _ -> paths_arg
 
-        if paths = pathsArg then
+        if paths = paths_arg then
             match choice with
                 | "x" -> exit 0
+                | "h" -> print_help
                 | _ -> printfn "Unrecognized option."
 
         loop paths
