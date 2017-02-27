@@ -15,7 +15,7 @@ module PathEditor =
           Selected : Boolean}
 
     let dir_removed d =
-        System.IO.Directory.Exists(d) |> not
+        d |> System.IO.Directory.Exists |> not
 
 
     let getpaths =
@@ -33,6 +33,7 @@ module PathEditor =
 
 
     let add (paths_arg : Path[]) =
+        Console.Clear()
         printf "Enter new path: "
         let newpath = Console.ReadLine()
 
@@ -41,7 +42,9 @@ module PathEditor =
         else
             paths_arg
 
-
+    let select_first paths = 
+        paths |> Array.map (fun p -> if p.Id = 0 then { p with Selected = true } else p)
+    (*
     let edit paths_arg =
         printf "What number to edit: "
         let mutable toEdit = -1
@@ -56,7 +59,7 @@ module PathEditor =
             else
                 paths_arg
         paths
-
+    *)
 
     let remove paths_arg =
         let toRem = paths_arg |> chosen_path
@@ -83,7 +86,7 @@ module PathEditor =
             (";", paths_arg |> Array.map (fun p -> p.Path))
             |> String.Join
 
-        printfn "%s" pathstr
+        printfn "%s\n" pathstr
         printf "The string above will be written to your %%PATH%%. Continue? (y/N): "
         let choice = Console.ReadLine()
 
@@ -92,24 +95,36 @@ module PathEditor =
             printfn "Changes written!"
         else
             printfn "No changes made."
-
-        System.Threading.Thread.Sleep(1000)
-        getpaths |> Array.map (fun p -> p)
-
-
-    let print_help =
-        printfn ""
+            
+        printf "Press enter to continue.."
+        Console.ReadLine() |> ignore     
+        
+        getpaths |> recount |> select_first
 
 
-    let up paths_arg =
-        let index =
-            paths_arg
-                |> Array.findIndex (fun p -> p.Selected)
+    let print_help() =
+        Console.Clear()
+        let help_msg = "[ PathEditor Help ]\n\
+            \n\
+            >\tdenotes the selected path\n\
+            *\tdenotes that a path is not accessible on the disk\n\
+            a\tadds a new path to the PATH environment variable\n\
+            r\tremoves the selected path from the PATH environment variable\n\
+            s\tsaves changes to disk\n\
+            h\tprints this help\n\
+            x\tcloses the program, discarding unsaved changes\n\
+            \n\
+            Press enter to continue.."
 
+        printf "%s" help_msg
+
+        Console.ReadLine() |> ignore     
+
+    let arrow_up paths_arg =
         let selected =
-            match index with
+            match (paths_arg |> chosen_path) with
                 | 0 -> paths_arg.Length
-                | _ -> index
+                | _ -> paths_arg |> chosen_path
 
         paths_arg
             |> Array.map (fun p ->
@@ -119,14 +134,10 @@ module PathEditor =
                     { p with Selected = false })
 
 
-    let down paths_arg =
-        let selected =
-            paths_arg
-                |> Array.findIndex (fun p -> p.Selected)
-
+    let arrow_down paths_arg =
         paths_arg
             |> Array.map (fun p ->
-                if (selected + 1) % (paths_arg.Length) = p.Id then
+                if ((paths_arg |> chosen_path) + 1) % (paths_arg.Length) = p.Id then
                     { p with Selected = true }
                 else
                     { p with Selected = false })
@@ -158,14 +169,14 @@ module PathEditor =
                 //| "e" -> edit paths_arg
                 | ConsoleKey.R -> remove paths_arg
                 | ConsoleKey.S -> save paths_arg
-                | ConsoleKey.UpArrow -> up paths_arg
-                | ConsoleKey.DownArrow -> down paths_arg
+                | ConsoleKey.UpArrow -> arrow_up paths_arg
+                | ConsoleKey.DownArrow -> arrow_down paths_arg
                 | _ -> paths_arg
 
         if paths = paths_arg then
             match choice.Key with
                 | ConsoleKey.X -> exit 0
-                | ConsoleKey.P -> print_help
+                | ConsoleKey.H -> print_help()
                 | _ -> printfn "Unrecognized option."
 
         loop paths
@@ -173,5 +184,5 @@ module PathEditor =
 
     [<EntryPoint>]
     let main argv =
-        getpaths |> Array.map (fun p -> if p.Id = 0 then { p with Selected = true } else p) |> loop
+        getpaths |> select_first |> loop
         0 // return an integer exit code
