@@ -7,6 +7,7 @@ open System
 open Microsoft.Win32
 
 module PathEditor =
+    let key_name = @"HKEY_USERS\S-1-5-21-2195505661-2592938423-597485938-1142\Environment"
     type Path =
         { Id : int
           Path : string
@@ -17,7 +18,7 @@ module PathEditor =
         System.IO.Directory.Exists(d) |> not
 
     let getpaths = 
-        Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\",  "Path", "").ToString().Split(';')
+        Registry.GetValue(key_name,  "Path", "").ToString().Split(';')
             |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false })
 
     let recount paths =
@@ -80,7 +81,7 @@ module PathEditor =
 
 
         if choice = "y" || choice = "Y" then
-            Registry.SetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\", "Path", pathstr, RegistryValueKind.ExpandString)
+            Registry.SetValue(key_name, "Path", pathstr, RegistryValueKind.ExpandString)
             printfn "Changes written!"
         else
             printfn "No changes made."
@@ -95,18 +96,34 @@ module PathEditor =
         printfn ""
 
     let up paths_arg =
+        let index = 
+            paths_arg 
+                |> Array.findIndex (fun p -> p.Selected)
+
+        let selected =
+            match index with
+                | 0 -> paths_arg.Length
+                | _ -> index
+
+        paths_arg 
+            |> Array.map (fun p -> 
+                if (selected - 1) % (paths_arg.Length - 1) = p.Id then 
+                    { p with Selected = true }
+                else 
+                    { p with Selected = false })
+
+
+    let down paths_arg =
         let selected = 
             paths_arg 
                 |> Array.findIndex (fun p -> p.Selected)
 
-
         paths_arg 
-            |> Array.map (fun p -> { p with Selected = false })
             |> Array.map (fun p -> 
-                if (selected - 1 % paths_arg.Length) = p.Id then 
-                    p
+                if (selected + 1) % (paths_arg.Length) = p.Id then 
+                    { p with Selected = true }
                 else 
-                    { p with Selected = true })
+                    { p with Selected = false })
 
 
     let rec loop paths_arg = 
@@ -139,6 +156,7 @@ module PathEditor =
                 | ConsoleKey.R -> remove paths_arg
                 | ConsoleKey.S -> save paths_arg
                 | ConsoleKey.UpArrow -> up paths_arg
+                | ConsoleKey.DownArrow -> down paths_arg
                 | _ -> paths_arg
 
         if paths = paths_arg then
@@ -151,5 +169,5 @@ module PathEditor =
         
     [<EntryPoint>]
     let main argv = 
-        getpaths |> Array.map (fun p -> if p.Id = 0 then { p with Selected = true } else p) |> loop
+        getpaths |> Array.map (fun p -> if p.Id = getpaths.Length - 1 then { p with Selected = true } else p) |> loop
         0 // return an integer exit code
