@@ -17,25 +17,30 @@ module PathEditor =
     let dir_removed d = 
         System.IO.Directory.Exists(d) |> not
 
+
     let getpaths = 
         Registry.GetValue(key_name,  "Path", "").ToString().Split(';')
             |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false })
+
+
+    let chosen_path paths =
+        paths |> Array.findIndex (fun p -> p.Selected)
+
 
     let recount paths =
         paths
            |> Array.mapi<Path, Path> (fun i p -> { Id = i; Path = p.Path; Removed = dir_removed p.Path; Selected = false })
 
+
     let add (paths_arg : Path[]) =
         printf "Enter new path: "
         let newpath = Console.ReadLine()
 
-        let paths: Path[] =
-            if Array.exists (fun (p : Path) -> p.Path = newpath) paths_arg = false then
-                Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath; Selected = false }|]
-            else
-                paths_arg
+        if Array.exists (fun (p : Path) -> p.Path = newpath) paths_arg = false then
+            Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath; Selected = false }|]
+        else
+            paths_arg
 
-        paths
 
     let edit paths_arg =
         printf "What number to edit: "
@@ -44,41 +49,43 @@ module PathEditor =
         
         printf "Edit path: "
         let newpath = Console.ReadLine()
-        
 
         let paths: Path[] =
             if Array.exists (fun (p : Path) -> p.Path = newpath) paths_arg = false then
                 Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath; Selected = false }|]
             else
                 paths_arg
-
         paths
 
-    let remove (paths_arg: Path[]) =
-        printf "What number to remove: "
-        let mutable toRem = -1
-        let success = Int32.TryParse(Console.ReadLine(), &toRem)
 
-        let paths = 
-            if toRem < paths_arg.Length && toRem > -1 && success then
+    let remove paths_arg =
+        let toRem = paths_arg |> chosen_path
+
+        Console.Clear()
+        printf "Remove %s? (y/N): " paths_arg.[toRem].Path
+        let choice = Console.ReadLine()
+
+        if choice = "y" || choice = "Y" then
+            if toRem < paths_arg.Length && toRem > -1 then
                 Array.append paths_arg.[0 .. toRem - 1] paths_arg.[toRem + 1.. ]
             else
                 paths_arg
             |> recount
+            |> Array.map (fun p -> if p.Id = ((paths_arg.Length - 1, ((toRem, 0) |> Math.Max)) |> Math.Min) then { p with Selected = true } else p)
+        else
+            paths_arg
 
-        paths
+
 
     let save (paths_arg: Path[]) = 
         Console.Clear()
         let pathstr = 
-            (";", paths_arg
-            |> Array.map<Path, String> (fun (p: Path) -> p.Path))
+            (";", paths_arg |> Array.map<Path, String> (fun (p: Path) -> p.Path))
             |> String.Join
 
         printfn "%s" pathstr
         printf "The string above will be written to your %%PATH%%. Continue? (y/N): "
         let choice = Console.ReadLine()
-
 
         if choice = "y" || choice = "Y" then
             Registry.SetValue(key_name, "Path", pathstr, RegistryValueKind.ExpandString)
@@ -86,14 +93,13 @@ module PathEditor =
         else
             printfn "No changes made."
         
-        
-        
-        Console.ReadKey() |> ignore
+        System.Threading.Thread.Sleep(1000)
+        getpaths |> Array.map (fun p -> p)
 
-        getpaths
 
     let print_help =
         printfn ""
+
 
     let up paths_arg =
         let index = 
@@ -127,7 +133,6 @@ module PathEditor =
 
 
     let rec loop paths_arg = 
-
         Console.Clear();
         for path in paths_arg do
             if path.Selected then
@@ -136,7 +141,6 @@ module PathEditor =
                 printfn "%d: * %s" path.Id path.Path
             else
                 printfn "%d: %s" path.Id path.Path
-
 
         printfn ""
         printfn "a) Add"
@@ -148,7 +152,6 @@ module PathEditor =
         printf " > "
         
         let choice = Console.ReadKey()
-
         let paths =
             match choice.Key with
                 | ConsoleKey.A -> add paths_arg
@@ -167,7 +170,8 @@ module PathEditor =
 
         loop paths
         
+
     [<EntryPoint>]
     let main argv = 
-        getpaths |> Array.map (fun p -> if p.Id = getpaths.Length - 1 then { p with Selected = true } else p) |> loop
+        getpaths |> Array.map (fun p -> if p.Id = 0 then { p with Selected = true } else p) |> loop
         0 // return an integer exit code
