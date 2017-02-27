@@ -11,14 +11,14 @@ module PathEditor =
     type Path =
         { Id : int
           Path : string
-          Removed : Boolean 
+          Removed : Boolean
           Selected : Boolean}
 
-    let dir_removed d = 
+    let dir_removed d =
         System.IO.Directory.Exists(d) |> not
 
 
-    let getpaths = 
+    let getpaths =
         Registry.GetValue(key_name,  "Path", "").ToString().Split(';')
             |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false })
 
@@ -46,7 +46,7 @@ module PathEditor =
         printf "What number to edit: "
         let mutable toEdit = -1
         let success = Int32.TryParse(Console.ReadLine(), &toEdit)
-        
+
         printf "Edit path: "
         let newpath = Console.ReadLine()
 
@@ -71,16 +71,16 @@ module PathEditor =
             else
                 paths_arg
             |> recount
-            |> Array.map (fun p -> if p.Id = ((paths_arg.Length - 1, ((toRem, 0) |> Math.Max)) |> Math.Min) then { p with Selected = true } else p)
+            |> Array.map (fun p -> if p.Id = ((paths_arg.Length - 2, ((toRem, 0) |> Math.Max)) |> Math.Min) then { p with Selected = true } else p)
         else
             paths_arg
 
 
 
-    let save (paths_arg: Path[]) = 
+    let save (paths_arg: Path[]) =
         Console.Clear()
-        let pathstr = 
-            (";", paths_arg |> Array.map<Path, String> (fun (p: Path) -> p.Path))
+        let pathstr =
+            (";", paths_arg |> Array.map (fun p -> p.Path))
             |> String.Join
 
         printfn "%s" pathstr
@@ -92,7 +92,7 @@ module PathEditor =
             printfn "Changes written!"
         else
             printfn "No changes made."
-        
+
         System.Threading.Thread.Sleep(1000)
         getpaths |> Array.map (fun p -> p)
 
@@ -102,8 +102,8 @@ module PathEditor =
 
 
     let up paths_arg =
-        let index = 
-            paths_arg 
+        let index =
+            paths_arg
                 |> Array.findIndex (fun p -> p.Selected)
 
         let selected =
@@ -111,28 +111,28 @@ module PathEditor =
                 | 0 -> paths_arg.Length
                 | _ -> index
 
-        paths_arg 
-            |> Array.map (fun p -> 
-                if (selected - 1) % (paths_arg.Length - 1) = p.Id then 
+        paths_arg
+            |> Array.map (fun p ->
+                if (selected - 1) % (paths_arg.Length) = p.Id then
                     { p with Selected = true }
-                else 
+                else
                     { p with Selected = false })
 
 
     let down paths_arg =
-        let selected = 
-            paths_arg 
+        let selected =
+            paths_arg
                 |> Array.findIndex (fun p -> p.Selected)
 
-        paths_arg 
-            |> Array.map (fun p -> 
-                if (selected + 1) % (paths_arg.Length) = p.Id then 
+        paths_arg
+            |> Array.map (fun p ->
+                if (selected + 1) % (paths_arg.Length) = p.Id then
                     { p with Selected = true }
-                else 
+                else
                     { p with Selected = false })
 
 
-    let rec loop paths_arg = 
+    let rec loop paths_arg =
         Console.Clear();
         for path in paths_arg do
             if path.Selected then
@@ -150,7 +150,7 @@ module PathEditor =
         printfn "h) Help"
         printfn "x) Exit (discard non-saved changes)"
         printf " > "
-        
+
         let choice = Console.ReadKey()
         let paths =
             match choice.Key with
@@ -169,9 +169,9 @@ module PathEditor =
                 | _ -> printfn "Unrecognized option."
 
         loop paths
-        
+
 
     [<EntryPoint>]
-    let main argv = 
+    let main argv =
         getpaths |> Array.map (fun p -> if p.Id = 0 then { p with Selected = true } else p) |> loop
         0 // return an integer exit code
