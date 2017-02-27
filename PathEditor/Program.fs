@@ -8,20 +8,21 @@ open Microsoft.Win32
 
 module PathEditor =
     type Path =
-        { Id: int
-          Path: string
-          Removed: Boolean }
+        { Id : int
+          Path : string
+          Removed : Boolean 
+          Selected : Boolean}
 
     let dir_removed d = 
         System.IO.Directory.Exists(d) |> not
 
     let getpaths = 
         Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\",  "Path", "").ToString().Split(';')
-            |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x })
+            |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false })
 
     let recount paths =
         paths
-           |> Array.mapi<Path, Path> (fun i p -> {Id = i; Path = p.Path; Removed = dir_removed p.Path})
+           |> Array.mapi<Path, Path> (fun i p -> { Id = i; Path = p.Path; Removed = dir_removed p.Path; Selected = false })
 
     let add (paths_arg : Path[]) =
         printf "Enter new path: "
@@ -29,7 +30,7 @@ module PathEditor =
 
         let paths: Path[] =
             if Array.exists (fun (p : Path) -> p.Path = newpath) paths_arg = false then
-                Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath }|]
+                Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath; Selected = false }|]
             else
                 paths_arg
 
@@ -46,7 +47,7 @@ module PathEditor =
 
         let paths: Path[] =
             if Array.exists (fun (p : Path) -> p.Path = newpath) paths_arg = false then
-                Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath }|]
+                Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath; Selected = false }|]
             else
                 paths_arg
 
@@ -93,12 +94,29 @@ module PathEditor =
     let print_help =
         printfn ""
 
+    let up paths_arg =
+        let selected = 
+            paths_arg 
+                |> Array.findIndex (fun p -> p.Selected)
+
+
+        paths_arg 
+            |> Array.map (fun p -> { p with Selected = false })
+            |> Array.map (fun p -> 
+                if (selected - 1 % paths_arg.Length) = p.Id then 
+                    p
+                else 
+                    { p with Selected = true })
+
+
     let rec loop paths_arg = 
 
         Console.Clear();
         for path in paths_arg do
+            if path.Selected then
+                printf "> "
             if path.Removed then
-                printfn "%d * : %s" path.Id path.Path
+                printfn "%d: * %s" path.Id path.Path
             else
                 printfn "%d: %s" path.Id path.Path
 
@@ -112,25 +130,26 @@ module PathEditor =
         printfn "x) Exit (discard non-saved changes)"
         printf " > "
         
-        let choice = Console.ReadLine()
+        let choice = Console.ReadKey()
 
         let paths =
-            match choice with
-                | "a" -> add paths_arg
+            match choice.Key with
+                | ConsoleKey.A -> add paths_arg
                 //| "e" -> edit paths_arg
-                | "r" -> remove paths_arg
-                | "s" -> save paths_arg
+                | ConsoleKey.R -> remove paths_arg
+                | ConsoleKey.S -> save paths_arg
+                | ConsoleKey.UpArrow -> up paths_arg
                 | _ -> paths_arg
 
         if paths = paths_arg then
-            match choice with
-                | "x" -> exit 0
-                | "h" -> print_help
+            match choice.Key with
+                | ConsoleKey.X -> exit 0
+                | ConsoleKey.P -> print_help
                 | _ -> printfn "Unrecognized option."
 
         loop paths
         
     [<EntryPoint>]
     let main argv = 
-        loop getpaths |> ignore
+        getpaths |> Array.map (fun p -> if p.Id = 0 then { p with Selected = true } else p) |> loop
         0 // return an integer exit code
