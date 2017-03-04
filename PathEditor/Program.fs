@@ -5,9 +5,10 @@
 
 open System
 open Microsoft.Win32
+open System.Runtime.InteropServices
 
 module PathEditor =
-    let key_name = @"HKEY_USERS\S-1-5-21-2195505661-2592938423-597485938-1142\Environment"
+    let key_name = @"HKEY_USERS\S-1-5-21-2385905891-1455851501-2109537457-1001\Environment"
     type Path =
         { Id : int
           Path : string
@@ -18,7 +19,7 @@ module PathEditor =
         d |> System.IO.Directory.Exists |> not
 
 
-    let getpaths =
+    let getpaths () =
         Registry.GetValue(key_name,  "Path", "").ToString().Split(';')
             |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false })
 
@@ -31,6 +32,8 @@ module PathEditor =
         paths
            |> Array.mapi<Path, Path> (fun i p -> { Id = i; Path = p.Path; Removed = dir_removed p.Path; Selected = false })
 
+    let s_join (d: string) (xstr: string[]) =
+        String.Join(d, xstr)
 
     let add (paths_arg : Path[]) =
         Console.Clear()
@@ -77,14 +80,20 @@ module PathEditor =
             |> Array.map (fun p -> if p.Id = ((paths_arg.Length - 2, ((toRem, 0) |> Math.Max)) |> Math.Min) then { p with Selected = true } else p)
         else
             paths_arg
-
-
+    
+    [<DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)>]
+    extern IntPtr SendMessage(
+        IntPtr hWnd,
+        uint32 Msg, 
+        UIntPtr wParam,
+        IntPtr lParam);
 
     let save (paths_arg: Path[]) =
         Console.Clear()
         let pathstr =
-            (";", paths_arg |> Array.map (fun p -> p.Path))
-            |> String.Join
+            paths_arg 
+                |> Array.map (fun p -> p.Path)
+                |> s_join ";"
 
         printfn "%s\n" pathstr
         printf "The string above will be written to your %%PATH%%. Continue? (y/N): "
@@ -95,11 +104,16 @@ module PathEditor =
             printfn "Changes written!"
         else
             printfn "No changes made."
-            
+        
+        let WM_SETTINGCHANGE: uint32 = 0x001Au
+        let HWND_BROADCAST: IntPtr = new IntPtr 0xffff
+        SendMessage(HWND_BROADCAST, WM_SETTINGCHANGE, UIntPtr.Zero, IntPtr.Zero) |> ignore
         printf "Press enter to continue.."
         Console.ReadLine() |> ignore     
         
-        getpaths |> recount |> select_first
+        getpaths () 
+            |> recount 
+            |> select_first
 
 
     let print_help() =
@@ -110,7 +124,8 @@ module PathEditor =
             *\tdenotes that a path is not accessible on the disk\n\
             a\tadds a new path to the PATH environment variable\n\
             r\tremoves the selected path from the PATH environment variable\n\
-            s\tsaves changes to disk\n\
+            l\treloads registry\n\
+            s\tsaves changes to registry\n\
             h\tprints this help\n\
             x\tcloses the program, discarding unsaved changes\n\
             \n\
@@ -128,19 +143,17 @@ module PathEditor =
 
         paths_arg
             |> Array.map (fun p ->
-                if (selected - 1) % (paths_arg.Length) = p.Id then
-                    { p with Selected = true }
-                else
-                    { p with Selected = false })
+                match (selected - 1) % (paths_arg.Length) = p.Id with
+                    | true -> { p with Selected = true }
+                    | false -> { p with Selected = false })
 
 
     let arrow_down paths_arg =
         paths_arg
-            |> Array.map (fun p ->
-                if ((paths_arg |> chosen_path) + 1) % (paths_arg.Length) = p.Id then
-                    { p with Selected = true }
-                else
-                    { p with Selected = false })
+            |> Array.map (fun p ->                
+                match ((paths_arg |> chosen_path) + 1) % (paths_arg.Length) = p.Id with
+                | true -> { p with Selected = true }
+                | false -> { p with Selected = false })
 
 
     let rec loop paths_arg =
@@ -157,6 +170,7 @@ module PathEditor =
         printfn "a) Add"
         printfn "r) Remove"
         //printfn "e) Edit"
+        printfn "l) Load"
         printfn "s) Save"
         printfn "h) Help"
         printfn "x) Exit (discard non-saved changes)"
@@ -168,6 +182,7 @@ module PathEditor =
                 | ConsoleKey.A -> add paths_arg
                 //| "e" -> edit paths_arg
                 | ConsoleKey.R -> remove paths_arg
+                | ConsoleKey.L -> getpaths ()  |> select_first
                 | ConsoleKey.S -> save paths_arg
                 | ConsoleKey.UpArrow -> arrow_up paths_arg
                 | ConsoleKey.DownArrow -> arrow_down paths_arg
@@ -176,7 +191,7 @@ module PathEditor =
         if paths = paths_arg then
             match choice.Key with
                 | ConsoleKey.X -> exit 0
-                | ConsoleKey.H -> print_help()
+                | ConsoleKey.H -> print_help ()
                 | _ -> printfn "Unrecognized option."
 
         loop paths
@@ -184,5 +199,5 @@ module PathEditor =
 
     [<EntryPoint>]
     let main argv =
-        getpaths |> select_first |> loop
+        getpaths () |> select_first |> loop
         0 // return an integer exit code
