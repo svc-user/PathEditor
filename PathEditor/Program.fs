@@ -20,7 +20,16 @@ module PathEditor =
 
 
     let getpaths () =
-        Registry.GetValue(key_name,  "Path", "").ToString().Split(';')
+        let key_path = 
+            (Registry.Users :> RegistryKey).GetSubKeyNames()
+                |> Array.map (fun k -> (k.Length, k))
+                |> Array.sortByDescending (fun (l, v) -> l)
+                |> Array.map (fun (l, v) -> v)
+                |> Array.skip 1
+                |> Array.find (fun _ -> true)
+            
+
+        Registry.GetValue("HKEY_USERS\\" + key_path + "\\Environment",  "Path", "").ToString().Split(';')
             |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false })
 
 
