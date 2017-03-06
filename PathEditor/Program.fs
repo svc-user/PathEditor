@@ -8,7 +8,7 @@ open Microsoft.Win32
 open System.Runtime.InteropServices
 
 module PathEditor =
-    let key_name = @"HKEY_USERS\S-1-5-21-2385905891-1455851501-2109537457-1001\Environment"
+    //let key_name = @"HKEY_USERS\S-1-5-21-2385905891-1455851501-2109537457-1001\Environment"
     type Path =
         { Id : int
           Path : string
@@ -19,17 +19,18 @@ module PathEditor =
         d |> System.IO.Directory.Exists |> not
 
 
-    let getpaths () =
-        let key_path = 
-            (Registry.Users :> RegistryKey).GetSubKeyNames()
-                |> Array.map (fun k -> (k.Length, k))
-                |> Array.sortByDescending (fun (l, v) -> l)
-                |> Array.map (fun (l, v) -> v)
-                |> Array.skip 1
-                |> Array.find (fun _ -> true)
-            
+    let key_name () =
+        (Registry.Users :> RegistryKey).GetSubKeyNames()
+            |> Array.map (fun k -> (k.Length, k))
+            |> Array.sortByDescending (fun (l, v) -> l)
+            |> Array.map (fun (l, v) -> v)
+            |> Array.skip 1
+            |> Array.find (fun _ -> true)
+            |> sprintf @"HKEY_USERS\%s\Environment"
 
-        Registry.GetValue("HKEY_USERS\\" + key_path + "\\Environment",  "Path", "").ToString().Split(';')
+
+    let getpaths () =
+        Registry.GetValue(key_name(),  "Path", "").ToString().Split(';')
             |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false })
 
 
@@ -109,7 +110,7 @@ module PathEditor =
         let choice = Console.ReadLine()
 
         if choice = "y" || choice = "Y" then
-            Registry.SetValue(key_name, "Path", pathstr, RegistryValueKind.ExpandString)
+            Registry.SetValue(key_name (), "Path", pathstr, RegistryValueKind.ExpandString)
             printfn "Changes written!"
         else
             printfn "No changes made."
