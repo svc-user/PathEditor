@@ -1,23 +1,19 @@
-﻿// Learn more about F# at http://fsharp.org
-// See the 'F# Tutorial' project for more help.
-
-// Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\",  "Path", null)
-
-open System
+﻿open System
 open Microsoft.Win32
 open System.Runtime.InteropServices
 
 module PathEditor =
-    //let key_name = @"HKEY_USERS\S-1-5-21-2385905891-1455851501-2109537457-1001\Environment"
     type Path =
         { Id : int
           Path : string
           Removed : Boolean
           Selected : Boolean
           AdminOnly : Boolean}
+          
 
     let dir_removed d =
         d |> System.IO.Directory.Exists |> not
+        
 
 
     let key_name () =
@@ -31,20 +27,18 @@ module PathEditor =
 
 
     let getpaths () =
-        let globals =
-            try
-                Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\",  "Path", null).ToString().Split(';')
-                    |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = true })
-            with
-                | :? UnauthorizedAccessException as e ->
-                    printfn "Run as admin to edit global path variables."
-                    [||]
+//        let globals =
+//            try
+//                Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\",  "Path", null).ToString().Split(';')
+//                    |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = true })
+//            with
+//                | :? UnauthorizedAccessException as e ->
+//                    printfn "Run as admin to edit global path variables."
+//                    [||]
 
-        let locals = 
-            Registry.GetValue(key_name(),  "Path", "").ToString().Split(';')
-                |> Array.mapi<string, Path> (fun i x -> { Id = i + globals.Length; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = false })
+        Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.User).ToString().Split(';')
+            |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = false })
 
-        locals |> Array.append globals
 
     let chosen_path paths =
         paths |> Array.findIndex (fun p -> p.Selected)
@@ -62,14 +56,14 @@ module PathEditor =
         printf "Enter new path: "
         let newpath = Console.ReadLine()
 
-        printf "Store (g)lobally or for (user): "
+        printf "Store (g)lobally or for (u)ser: "
         let for_admin = 
             match Console.ReadLine() with
             | "g" -> true
             | _ -> false
 
         match Array.exists (fun p -> p.Path = newpath) paths_arg with
-            | false -> paths_arg |> Array.append [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath; Selected = false; AdminOnly = for_admin }|]
+            | false -> Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath; Selected = false; AdminOnly = for_admin }|]
             | true -> paths_arg
 
 
@@ -109,17 +103,12 @@ module PathEditor =
         else
             paths_arg
     
-    [<DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)>]
-    extern IntPtr SendMessage(
-        IntPtr hWnd,
-        uint32 Msg, 
-        UIntPtr wParam,
-        IntPtr lParam);
 
     let save (paths_arg: Path[]) =
         Console.Clear()
         let pathstr =
             paths_arg 
+                |> Array.filter (fun p -> not p.AdminOnly)
                 |> Array.map (fun p -> p.Path)
                 |> s_join ";"
 
@@ -128,14 +117,11 @@ module PathEditor =
         let choice = Console.ReadLine()
 
         if choice = "y" || choice = "Y" then
-            Registry.SetValue(key_name (), "Path", pathstr, RegistryValueKind.ExpandString)
+            Environment.SetEnvironmentVariable("Path", pathstr, EnvironmentVariableTarget.User)
             printfn "Changes written!"
         else
             printfn "No changes made."
         
-        let WM_SETTINGCHANGE: uint32 = 0x001Au
-        let HWND_BROADCAST: IntPtr = new IntPtr 0xffff
-        SendMessage(HWND_BROADCAST, WM_SETTINGCHANGE, UIntPtr.Zero, IntPtr.Zero) |> ignore
         printf "Press enter to continue.."
         Console.ReadLine() |> ignore     
         
