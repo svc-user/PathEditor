@@ -13,7 +13,8 @@ module PathEditor =
         { Id : int
           Path : string
           Removed : Boolean
-          Selected : Boolean}
+          Selected : Boolean
+          AdminOnly : Boolean}
 
     let dir_removed d =
         d |> System.IO.Directory.Exists |> not
@@ -30,9 +31,20 @@ module PathEditor =
 
 
     let getpaths () =
-        Registry.GetValue(key_name(),  "Path", "").ToString().Split(';')
-            |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false })
+        let globals =
+            try
+                Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\",  "Path", null).ToString().Split(';')
+                    |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = true })
+            with
+                | :? UnauthorizedAccessException as e ->
+                    printfn "Run as admin to edit global path variables."
+                    [||]
 
+        let locals = 
+            Registry.GetValue(key_name(),  "Path", "").ToString().Split(';')
+                |> Array.mapi<string, Path> (fun i x -> { Id = i + globals.Length; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = false })
+
+        locals |> Array.append globals
 
     let chosen_path paths =
         paths |> Array.findIndex (fun p -> p.Selected)
@@ -40,20 +52,26 @@ module PathEditor =
 
     let recount paths =
         paths
-           |> Array.mapi<Path, Path> (fun i p -> { Id = i; Path = p.Path; Removed = dir_removed p.Path; Selected = false })
+           |> Array.mapi<Path, Path> (fun i p -> { p with Id = i; Removed = dir_removed p.Path; Selected = false })
 
     let s_join (d: string) (xstr: string[]) =
         String.Join(d, xstr)
 
-    let add (paths_arg : Path[]) =
+    let add (paths_arg : Path[])  =
         Console.Clear()
         printf "Enter new path: "
         let newpath = Console.ReadLine()
 
-        if Array.exists (fun (p : Path) -> p.Path = newpath) paths_arg = false then
-            Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath; Selected = false }|]
-        else
-            paths_arg
+        printf "Store (g)lobally or for (user): "
+        let for_admin = 
+            match Console.ReadLine() with
+            | "g" -> true
+            | _ -> false
+
+        match Array.exists (fun p -> p.Path = newpath) paths_arg with
+            | false -> paths_arg |> Array.append [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath; Selected = false; AdminOnly = for_admin }|]
+            | true -> paths_arg
+
 
     let select_first paths = 
         paths |> Array.map (fun p -> if p.Id = 0 then { p with Selected = true } else p)
