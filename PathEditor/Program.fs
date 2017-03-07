@@ -15,19 +15,10 @@ module PathEditor =
         d |> System.IO.Directory.Exists |> not
         
 
-
-    let key_name () =
-        (Registry.Users :> RegistryKey).GetSubKeyNames()
-            |> Array.map (fun k -> (k.Length, k))
-            |> Array.sortByDescending (fun (l, v) -> l)
-            |> Array.map (fun (l, v) -> v)
-            |> Array.skip 1
-            |> Array.find (fun _ -> true)
-            |> sprintf @"HKEY_USERS\%s\Environment"
-
     let recount paths =
         paths
            |> Array.mapi<Path, Path> (fun i p -> { p with Id = i; Removed = dir_removed p.Path; Selected = false })
+
 
     let getpaths () =
         let machine = 
@@ -39,6 +30,7 @@ module PathEditor =
                 |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = false })
         
         Array.append machine users
+            |> Array.filter (fun p -> not p.AdminOnly) //for now :)
             |> recount
 
 
@@ -176,7 +168,7 @@ module PathEditor =
                 | i when i > 5 -> printfn " ^ "
                 | _ -> printfn " - "
 
-        for path in (paths_arg |> Array.filter (fun (p: Path) -> p.Id > selected - 5 && p.Id < selected + 5)) do
+        for path in (paths_arg |> Array.filter (fun (p: Path) -> p.Id > selected - 5 && p.Id < 10 + selected + 5)) do
             match path.Selected with
                 | true -> printf "> "
                 | _ -> ()
