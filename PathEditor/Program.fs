@@ -25,28 +25,28 @@ module PathEditor =
             |> Array.find (fun _ -> true)
             |> sprintf @"HKEY_USERS\%s\Environment"
 
+    let recount paths =
+        paths
+           |> Array.mapi<Path, Path> (fun i p -> { p with Id = i; Removed = dir_removed p.Path; Selected = false })
 
     let getpaths () =
-//        let globals =
-//            try
-//                Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment\",  "Path", null).ToString().Split(';')
-//                    |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = true })
-//            with
-//                | :? UnauthorizedAccessException as e ->
-//                    printfn "Run as admin to edit global path variables."
-//                    [||]
+        let machine = 
+            Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.Machine).ToString().Split(';')
+                |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = true })
 
-        Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.User).ToString().Split(';')
-            |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = false })
+        let users = 
+            Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.User).ToString().Split(';')
+                |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = false })
+        
+        Array.append machine users
+            |> recount
 
 
     let chosen_path paths =
         paths |> Array.findIndex (fun p -> p.Selected)
 
 
-    let recount paths =
-        paths
-           |> Array.mapi<Path, Path> (fun i p -> { p with Id = i; Removed = dir_removed p.Path; Selected = false })
+    
 
     let s_join (d: string) (xstr: string[]) =
         String.Join(d, xstr)
@@ -125,8 +125,7 @@ module PathEditor =
         printf "Press enter to continue.."
         Console.ReadLine() |> ignore     
         
-        getpaths () 
-            |> recount 
+        getpaths ()
             |> select_first
 
 
@@ -172,13 +171,23 @@ module PathEditor =
 
     let rec loop paths_arg =
         Console.Clear();
-        for path in paths_arg do
-            if path.Selected then
-                printf "> "
-            if path.Removed then
-                printfn "%d: * %s" path.Id path.Path
-            else
-                printfn "%d: %s" path.Id path.Path
+        let selected = paths_arg |> chosen_path
+        match selected with
+                | i when i > 5 -> printfn " ^ "
+                | _ -> printfn " - "
+
+        for path in (paths_arg |> Array.filter (fun (p: Path) -> p.Id > selected - 5 && p.Id < selected + 5)) do
+            match path.Selected with
+                | true -> printf "> "
+                | _ -> ()
+
+            match path.Removed with
+                | true -> printfn "%d: * %s" path.Id path.Path
+                | _ -> printfn "%d: %s" path.Id path.Path
+
+        match selected with
+            | i when i < paths_arg.Length - 5 -> printfn " v "
+            | _ -> printfn " - "
 
         printfn ""
         printfn "a) Add"
