@@ -145,6 +145,7 @@ module PathEditor =
                 | true -> { p with Selected = true }
                 | false -> { p with Selected = false })
 
+
     let print_paths paths =
         Console.Clear();
         let selected = paths |> chosen_path
@@ -153,7 +154,6 @@ module PathEditor =
 
         let min, max =
             match  max' - min' with
-            | 10 -> min', max'
             | diff when diff < 10 && min' = 0 -> min', max' + (10 - diff)
             | diff when diff < 10 && max' = paths.Length - 1 ->  min' - (10 - diff), max'
             | _ -> min', max'
