@@ -30,7 +30,7 @@ module PathEditor =
                 |> Array.mapi<string, Path> (fun i x -> { Id = i; Path = x; Removed = dir_removed x; Selected = false; AdminOnly = false })
         
         Array.append machine users
-            |> Array.filter (fun p -> not p.AdminOnly) //for now :)
+            //|> Array.filter (fun p -> not p.AdminOnly) //for now :)
             |> recount
 
 
@@ -61,22 +61,7 @@ module PathEditor =
 
     let select_first paths = 
         paths |> Array.map (fun p -> if p.Id = 0 then { p with Selected = true } else p)
-    (*
-    let edit paths_arg =
-        printf "What number to edit: "
-        let mutable toEdit = -1
-        let success = Int32.TryParse(Console.ReadLine(), &toEdit)
 
-        printf "Edit path: "
-        let newpath = Console.ReadLine()
-
-        let paths: Path[] =
-            if Array.exists (fun (p : Path) -> p.Path = newpath) paths_arg = false then
-                Array.append paths_arg [|{ Id = paths_arg.Length; Path = newpath; Removed = dir_removed newpath; Selected = false }|]
-            else
-                paths_arg
-        paths
-    *)
 
     let remove paths_arg =
         let toRem = paths_arg |> chosen_path
@@ -160,15 +145,24 @@ module PathEditor =
                 | true -> { p with Selected = true }
                 | false -> { p with Selected = false })
 
-
-    let rec loop paths_arg =
+    let print_paths paths =
         Console.Clear();
-        let selected = paths_arg |> chosen_path
+        let selected = paths |> chosen_path
+        let min' = (selected - 5, 0) |> Math.Max
+        let max' = (selected + 5, paths.Length - 1) |> Math.Min
+
+        let min, max =
+            match  max' - min' with
+            | 10 -> min', max'
+            | diff when 5 - min' < 0 -> min', min' + diff
+            | diff when 5 + max' > paths.Length - 1 -> min' - diff, max'
+            | _ -> 0, 1
+
         match selected with
                 | i when i > 5 -> printfn " ^ "
                 | _ -> printfn " - "
 
-        for path in (paths_arg |> Array.filter (fun (p: Path) -> p.Id > selected - 5 && p.Id < 10 + selected + 5)) do
+        for path in (paths |> Array.filter (fun (p: Path) -> p.Id >= min && p.Id <= max)) do
             match path.Selected with
                 | true -> printf "> "
                 | _ -> ()
@@ -177,9 +171,14 @@ module PathEditor =
                 | true -> printfn "%d: * %s" path.Id path.Path
                 | _ -> printfn "%d: %s" path.Id path.Path
 
+
         match selected with
-            | i when i < paths_arg.Length - 5 -> printfn " v "
+            | i when i < paths.Length - 5 -> printfn " v "
             | _ -> printfn " - "
+
+
+    let rec loop paths_arg =
+        print_paths paths_arg
 
         printfn ""
         printfn "a) Add"
@@ -205,6 +204,7 @@ module PathEditor =
 
         if paths = paths_arg then
             match choice.Key with
+                | ConsoleKey.Q
                 | ConsoleKey.X -> exit 0
                 | ConsoleKey.H -> print_help ()
                 | _ -> printfn "Unrecognized option."
