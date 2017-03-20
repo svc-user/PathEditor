@@ -38,7 +38,17 @@ module PathEditor =
         paths |> Array.findIndex (fun p -> p.Selected)
 
 
-    
+    let s_lower (s: string) = 
+        s.ToLowerInvariant()
+
+
+    let m_max (a : int) (b : int) =
+        Math.Max(a, b)
+
+
+    let m_min (a : int) ( b: int) =
+        Math.Min(a, b)
+
 
     let s_join (d: string) (xstr: string[]) =
         String.Join(d, xstr)
@@ -68,36 +78,56 @@ module PathEditor =
 
         Console.Clear()
         printf "Remove %s? (y/N): " paths_arg.[toRem].Path
-        let choice = Console.ReadLine()
+        let choice = Console.ReadLine() |> s_lower
 
-        if choice = "y" || choice = "Y" then
-            if toRem < paths_arg.Length && toRem > -1 then
-                Array.append paths_arg.[0 .. toRem - 1] paths_arg.[toRem + 1.. ]
-            else
-                paths_arg
-            |> recount
-            |> Array.map (fun p -> if p.Id = ((paths_arg.Length - 2, ((toRem, 0) |> Math.Max)) |> Math.Min) then { p with Selected = true } else p)
-        else
-            paths_arg
-    
+        match choice with
+            | "y" when toRem < paths_arg.Length && toRem > -1 -> 
+                Array.append paths_arg.[0 .. toRem - 1] paths_arg.[toRem + 1 .. ]
+                    |> recount
+                    |> Array.map (fun p -> if p.Id = ((paths_arg.Length - 2, (toRem |> m_max 0)) |> Math.Min) then { p with Selected = true } else p)
+            | _ -> paths_arg    
 
     let save (paths_arg: Path[]) =
         Console.Clear()
-        let pathstr =
+        let usrPathStr =
             paths_arg 
                 |> Array.filter (fun p -> not p.AdminOnly)
                 |> Array.map (fun p -> p.Path)
                 |> s_join ";"
 
-        printfn "%s\n" pathstr
-        printf "The string above will be written to your %%PATH%%. Continue? (y/N): "
-        let choice = Console.ReadLine()
+        let machinePathStr =
+            paths_arg 
+                |> Array.filter (fun p -> p.AdminOnly)
+                |> Array.map (fun p -> p.Path)
+                |> s_join ";"
 
-        if choice = "y" || choice = "Y" then
-            Environment.SetEnvironmentVariable("Path", pathstr, EnvironmentVariableTarget.User)
-            printfn "Changes written!"
-        else
-            printfn "No changes made."
+        
+        printfn "%s\n" usrPathStr
+        printf "The string above will be written to your user  %%PATH%%. Continue? (y/N): "
+        let choice = Console.ReadLine() |> s_lower
+
+        match choice with
+            | "y" ->
+                Environment.SetEnvironmentVariable("Path", usrPathStr, EnvironmentVariableTarget.User)
+                printfn "Changes written!"
+            | _ ->
+                printfn "No changes made."
+        
+        try
+            printfn "\n\n%s\n" machinePathStr
+            printf "The string above will be written to your machine  %%PATH%%. Continue? (y/N): "
+            let choice = Console.ReadLine() |> s_lower
+
+            match choice with
+                | "y" ->
+                    Environment.SetEnvironmentVariable("Path", machinePathStr, EnvironmentVariableTarget.Machine)
+                    printfn "Changes written!"
+                | _ ->
+                    printfn "No changes made."
+        with
+            | :? System.Security.SecurityException -> 
+                printfn "Run as admin to change machine registry."
+                printfn "No changes made."
         
         printf "Press enter to continue.."
         Console.ReadLine() |> ignore     
