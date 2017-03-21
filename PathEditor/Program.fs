@@ -58,10 +58,10 @@ module PathEditor =
         printf "Enter new path: "
         let newpath = Console.ReadLine()
 
-        printf "Store (g)lobally or for (u)ser: "
+        printf "Store for (m)achine or for (u)ser: "
         let for_admin = 
             match Console.ReadLine() with
-            | "g" -> true
+            | "m" -> true
             | _ -> false
 
         match Array.exists (fun p -> p.Path = newpath) paths_arg with
@@ -142,6 +142,8 @@ module PathEditor =
             \n\
             >\tdenotes the selected path\n\
             *\tdenotes that a path is not accessible on the disk\n\
+            (u)\tdenotes that a path is saved for the user\n\
+            (m)\tdenotes that a path is saved for the machine (requires admin privilegdes to change)\n\
             a\tadds a new path to the PATH environment variable\n\
             r\tremoves the selected path from the PATH environment variable\n\
             l\treloads registry\n\
@@ -178,18 +180,19 @@ module PathEditor =
 
     let print_paths paths =
         Console.Clear();
+        let spacing = 7
         let selected = paths |> chosen_path
-        let min' = (selected - 5, 0) |> Math.Max
-        let max' = (selected + 5, paths.Length - 1) |> Math.Min
+        let min' = (selected - spacing, 0) |> Math.Max
+        let max' = (selected + spacing, paths.Length - 1) |> Math.Min
 
         let min, max =
             match  max' - min' with
-            | diff when diff < 10 && min' = 0 -> min', max' + (10 - diff)
-            | diff when diff < 10 && max' = paths.Length - 1 ->  min' - (10 - diff), max'
+            | diff when diff < (spacing * 2) && min' = 0 -> min', max' + ((spacing * 2) - diff)
+            | diff when diff < (spacing * 2) && max' = paths.Length - 1 ->  min' - ((spacing * 2) - diff), max'
             | _ -> min', max'
 
         match selected with
-                | i when i > 5 -> printfn " ^ "
+                | i when i > spacing -> printfn " ^ "
                 | _ -> printfn " - "
 
         for path in (paths |> Array.filter (fun (p: Path) -> p.Id >= min && p.Id <= max)) do
@@ -197,13 +200,17 @@ module PathEditor =
                 | true -> printf "> "
                 | _ -> ()
 
+            match path.AdminOnly with
+                | true -> printf "(m) "
+                | _ -> printf "(u) "
+
             match path.Removed with
                 | true -> printfn "%d: * %s" path.Id path.Path
                 | _ -> printfn "%d: %s" path.Id path.Path
 
 
         match selected with
-            | i when i < paths.Length - 5 -> printfn " v "
+            | i when i < paths.Length - spacing -> printfn " v "
             | _ -> printfn " - "
 
 
@@ -217,7 +224,7 @@ module PathEditor =
         printfn "l) Load"
         printfn "s) Save"
         printfn "h) Help"
-        printfn "x) Exit (discard non-saved changes)"
+        printfn "q) Quit (discard non-saved changes)"
         printf " > "
 
         let choice = Console.ReadKey()
@@ -234,8 +241,7 @@ module PathEditor =
 
         if paths = paths_arg then
             match choice.Key with
-                | ConsoleKey.Q
-                | ConsoleKey.X -> exit 0
+                | ConsoleKey.Q -> exit 0
                 | ConsoleKey.H -> print_help ()
                 | _ -> printfn "Unrecognized option."
 
