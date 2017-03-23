@@ -180,7 +180,7 @@ module PathEditor =
 
     let print_paths paths =
         Console.Clear();
-        let spacing = 7
+        let spacing = Math.Max((Console.WindowHeight - 15) / 2, 5)
         let selected = paths |> chosen_path
         let min' = (selected - spacing, 0) |> Math.Max
         let max' = (selected + spacing, paths.Length - 1) |> Math.Min
