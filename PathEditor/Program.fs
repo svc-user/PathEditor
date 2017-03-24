@@ -205,7 +205,8 @@ module PathEditor =
                 | _ -> printf "(u) "
 
             match path.Removed with
-                | true -> printfn "%d: * %s" path.Id path.Path
+                | true when path.Selected -> printfn "%d: * %s <" path.Id path.Path
+                | false when path.Selected -> printfn "%d: %s <" path.Id path.Path
                 | _ -> printfn "%d: %s" path.Id path.Path
 
 
